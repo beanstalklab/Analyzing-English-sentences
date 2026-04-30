@@ -17,3 +17,16 @@ export interface AnalyzeResponse {
   rhythm_intonation: string;
   practice_tips: string;
 }
+
+export interface WordFormOption {
+  text: string;
+  is_correct: boolean;
+}
+
+export interface WordFormQuestion {
+  sentence: string;
+  options: WordFormOption[];
+  correct_answer: string;
+  explanation: string;
+  word_root: string;
+}

@@ -2,7 +2,7 @@ import json
 from google import genai
 from google.genai import types
 from core.config import settings
-from models.schemas import AnalyzeResponse
+from models.schemas import AnalyzeResponse, WordFormQuestion, WordFormOption
 
 # Initialize Gemini Client
 # The api_key is loaded from GEMINI_API_KEY environment variable by default,
@@ -18,7 +18,7 @@ Hãy phân tích câu đầu vào theo các yêu cầu sau:
 1. Chia câu thành các cụm (chunks) có ý nghĩa để ngắt hơi.
 2. Phân tích từ loại (POS) theo cụm (Phrase) thay vì từng từ đơn lẻ. Ghép các từ thành cụm từ loại có nghĩa bằng Tiếng Anh. Đặc biệt lưu ý phân biệt rõ các cụm động từ đi liền nhau. ĐỒNG THỜI, với mỗi cụm, cung cấp một đoạn giải thích ngắn (explanation) bằng Tiếng Việt về khái niệm từ loại đó và vai trò của nó trong câu hiện tại.
 3. Với mỗi cụm, phân tích chi tiết hiện tượng ngữ âm (nối âm, nuốt âm, biến âm, lướt âm).
-4. Cung cấp cách đọc mô phỏng bằng Tiếng Việt để người Việt dễ hình dung nhất cho từng cụm. (QUAN TRỌNG: Hãy bọc các chỗ nuốt âm, nối âm hoặc biến âm bằng hai dấu sao, ví dụ **đ-róp-póp-f** hoặc **tờ**, để làm nổi bật).
+4. Cung cấp cách đọc mô phỏng bằng Tiếng Việt để người Việt dễ hình dung nhất cho từng cụm. (QUAN TRỌNG: Chỉ bọc dấu sao ** đúng vào VỊ TRÍ âm tiết có hiện tượng nối âm, nuốt âm hoặc biến âm. KHÔNG bọc cả từ nếu không cần thiết. Ví dụ: "đ-róp-**póp**-f" (nối âm p), "gi**ớ**-keim" (nuốt âm t), "**tờ**" (lướt âm)).
 5. Cung cấp nhịp điệu (rhythm), các từ cần nhấn mạnh, và ngữ điệu cả câu.
 6. Đưa ra mẹo luyện tập (practice_tips) tóm tắt lại những chỗ khó nhất cần lưu ý khi đọc cả câu.
 
@@ -47,7 +47,7 @@ def analyze_sentence(text: str) -> AnalyzeResponse:
     # ]
     
     response = client.models.generate_content(
-        model='gemini-3-flash-preview',
+        model='gemini-3.1-flash-lite-preview',
         contents=prompt,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
@@ -70,4 +70,41 @@ def analyze_sentence(text: str) -> AnalyzeResponse:
         return AnalyzeResponse(**data)
     except Exception as e:
         print("Error parsing LLM response:", e)
+        raise e
+
+def generate_word_form_question() -> WordFormQuestion:
+    prompt = """
+    Bạn là một chuyên gia luyện thi TOEIC. 
+    Nhiệm vụ của bạn là tạo ra MỘT câu hỏi trắc nghiệm về Biến thể của từ (Word Form) theo đúng format đề thi TOEIC Part 5.
+
+    Yêu cầu:
+    1. Câu hỏi phải tập trung vào việc chọn đúng từ loại (Danh từ, Động từ, Tính từ, Trạng từ) dựa trên vị trí của nó trong câu.
+    2. Cung cấp 4 lựa chọn là 4 biến thể của cùng một từ gốc (ví dụ: produce, production, productive, productively).
+    3. Câu hỏi phải có độ khó tương đương đề thi TOEIC thật, sử dụng từ vựng chuyên ngành công sở, kinh doanh.
+    4. Cung cấp lời giải chi tiết bằng Tiếng Việt (explanation), giải thích tại sao chọn đáp án đó (ví dụ: vì đứng sau tính từ sở hữu, vì đứng trước danh từ để bổ nghĩa, v.v.).
+    5. Đảm bảo câu hỏi có một và chỉ một đáp án đúng.
+    6. Chỗ trống trong câu phải được ký hiệu là "___".
+
+    Hãy trả về kết quả dưới định dạng JSON khớp với schema WordFormQuestion.
+    """
+    
+    response = client.models.generate_content(
+        model='gemini-3.1-flash-lite-preview',
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=WordFormQuestion,
+            thinking_config=types.ThinkingConfig(
+                thinking_level="HIGH",
+            ),
+        ),
+    )
+    
+    try:
+        if hasattr(response, 'parsed') and response.parsed is not None:
+             return response.parsed
+        data = json.loads(response.text)
+        return WordFormQuestion(**data)
+    except Exception as e:
+        print("Error parsing LLM response for word form:", e)
         raise e

@@ -16,3 +16,14 @@ class AnalyzeResponse(BaseModel):
     speech_analysis: list[SpeechChunk] = Field(description="Phân tích chi tiết cách phát âm cho từng cụm từ")
     rhythm_intonation: str = Field(description="Giải thích bằng Tiếng Việt về nhịp điệu và ngữ điệu của cả câu (nhấn âm, lên/xuống giọng, phiên âm cả câu)")
     practice_tips: str = Field(description="Mẹo luyện tập phát âm (các điểm nối âm, nuốt âm cần chú ý nhất)")
+
+class WordFormOption(BaseModel):
+    text: str = Field(description="Nội dung của lựa chọn (ví dụ: 'productive')")
+    is_correct: bool = Field(description="Lựa chọn này có đúng hay không")
+
+class WordFormQuestion(BaseModel):
+    sentence: str = Field(description="Câu hỏi với chỗ trống (___), ví dụ: 'The meeting was very ___.'")
+    options: list[WordFormOption] = Field(description="Danh sách 4 lựa chọn (Noun, Verb, Adj, Adv)")
+    correct_answer: str = Field(description="Nội dung đáp án đúng")
+    explanation: str = Field(description="Giải thích chi tiết bằng Tiếng Việt tại sao đáp án đó đúng dựa trên ngữ pháp TOEIC")
+    word_root: str = Field(description="Từ gốc (root word) của các lựa chọn")

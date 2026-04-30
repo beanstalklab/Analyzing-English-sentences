@@ -182,3 +182,132 @@
     border-right-color: var(--border);
   }
 }
+
+html {
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+}
+
+:root {
+  --base-neutral: oklch(98% 0.005 250);
+  --primary: oklch(60% 0.15 260);
+  --primary-muted: oklch(92% 0.02 260);
+  --text-main: oklch(25% 0.02 250);
+  --text-muted: oklch(50% 0.02 250);
+  --surface: white;
+  --border-light: oklch(92% 0.01 250);
+}
+
+.learn-content {
+  color: var(--text-main);
+}
+
+.learn-content h1 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-bottom: 2rem;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.learn-content h1 {
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-top: 5rem;
+  margin-bottom: 2rem;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.learn-content h2 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-top: 4rem;
+  margin-bottom: 1.5rem;
+  letter-spacing: -0.02em;
+  padding-left: 1.25rem;
+  border-left: 4px solid var(--primary);
+}
+
+.learn-content h3 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+  letter-spacing: 0.02em;
+}
+
+.learn-content p {
+  line-height: 1.8;
+  margin-bottom: 1.5rem;
+  color: oklch(35% 0.02 250);
+}
+
+.learn-content table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 3rem 0;
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.05);
+  background: white;
+}
+
+.learn-content th {
+  background: oklch(97% 0.01 250);
+  color: var(--text-main);
+  font-weight: 700;
+  text-align: left;
+  padding: 1.5rem;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.learn-content td {
+  padding: 1.25rem 1.5rem;
+  color: oklch(40% 0.02 250);
+  border-bottom: 1px solid oklch(96% 0.01 250);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.learn-content tr:last-child td {
+  border-bottom: none;
+}
+
+.learn-content tr:hover td {
+  background: oklch(99% 0.005 250);
+}
+
+.learn-content tr:last-child td {
+  border-bottom: none;
+}
+
+.learn-content tr:hover td {
+  background: oklch(99% 0.005 250);
+}
+
+.pro-tip-card {
+  background: oklch(97% 0.03 260);
+  border: 1px solid oklch(90% 0.05 260);
+  border-radius: 20px;
+  padding: 1.5rem;
+  margin: 2rem 0;
+  display: flex;
+  gap: 1rem;
+}
+
+.pro-tip-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  color: var(--primary);
+}
