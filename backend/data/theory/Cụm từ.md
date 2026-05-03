@@ -58,26 +58,109 @@ Trong giao tiếp, người bản xứ rất hay trả lời bằng cụm ngắn
 
 ## 3. Cụm nối ý làm câu "mượt"
 
-Đây là phần rất quan trọng để câu không bị khô và rời rạc:
+Đây là phần rất quan trọng để câu không bị khô và rời rạc. Trong tiếng Anh, có nhiều nhóm từ nối khác nhau:
+
+### 3.1. FANBOYS - 7 liên từ đẳng lập (Coordinating Conjunctions)
+
+Đây là nhóm cơ bản nhất, dùng để nối hai mệnh đề ngang hàng. Nhớ quy tắc: **trước FANBOYS thường có dấu phẩy** khi nối hai câu hoàn chỉnh.
+
+| Liên từ | Nghĩa | Ví dụ |
+| --- | --- | --- |
+| **F**or | vì / bởi vì | *I stayed home, **for** it was raining.* |
+| **A**nd | và | *She sings **and** he plays guitar.* |
+| **N**or | cũng không | *He doesn't smoke, **nor** does he drink.* |
+| **B**ut | nhưng | *I tried hard, **but** I failed.* |
+| **O**r | hoặc | *Hurry up, **or** we'll be late.* |
+| **Y**et | tuy nhiên / nhưng mà | *It was raining, **yet** they went out.* |
+| **S**o | nên / vì vậy | *I was tired, **so** I went home.* |
+
+> **Lưu ý:** *For* mang nghĩa "vì" (giải thích lý do), khác với *because*. Trong giao tiếp hiện đại, *for* ít được dùng hơn, nhưng hay gặp trong văn viết và bài thi.
+
+### 3.2. Liên từ phụ thuộc (Subordinating Conjunctions)
+
+Dùng để nối **mệnh đề chính** với **mệnh đề phụ** (mệnh đề không thể đứng một mình):
+
+**Nhóm chỉ thời gian:**
+* **when** = khi - *I'll call you **when** I arrive.*
+* **while** = trong khi - *She was reading **while** he was cooking.*
+* **before** = trước khi - *Finish your homework **before** you go out.*
+* **after** = sau khi - *We left **after** the movie ended.*
+* **since** = kể từ khi - *I've known him **since** 2020.*
+* **until** = cho đến khi - *Wait here **until** I come back.*
+* **as soon as** = ngay khi - *Call me **as soon as** you get there.*
+
+**Nhóm chỉ nguyên nhân / điều kiện:**
+* **because** = vì - *I stayed home **because** it was raining.*
+* **since** = vì / bởi - *Let's eat out **since** there's nothing at home.*
+* **if** = nếu - *I'll go **if** you come with me.*
+* **unless** = trừ khi - *We'll be late **unless** we hurry.*
+* **as long as** = miễn là - *You can borrow it **as long as** you return it.*
+
+**Nhóm chỉ sự tương phản / nhượng bộ:**
+* **although / though / even though** = mặc dù - *He went out **although** it was cold.*
+* **whereas** = trong khi đó (so sánh) - *She likes coffee, **whereas** I prefer tea.*
+
+### 3.3. Từ nối chuyển tiếp (Transition Words / Adverbial Connectors)
+
+Đây là nhóm làm cho bài nói và bài viết **mạch lạc, chuyên nghiệp hơn**. Thường đứng đầu câu hoặc giữa hai câu, có dấu phẩy theo sau:
+
+**Bổ sung ý:**
+* **also** = cũng
+* **besides** / **in addition** / **moreover** / **furthermore** = ngoài ra / hơn nữa
+* **what's more** = hơn thế nữa
+
+**Tương phản:**
+* **however** = tuy nhiên
+* **nevertheless** = tuy vậy
+* **on the other hand** = mặt khác
+* **instead** = thay vào đó
+
+**Nguyên nhân - Kết quả:**
+* **therefore** / **as a result** / **consequently** = do đó / kết quả là
+* **that's why** = đó là lý do tại sao
+
+**Ví dụ / Giải thích:**
+* **for example** / **for instance** = ví dụ
+* **in other words** = nói cách khác
+* **that is (to say)** = nghĩa là
+
+**Kết luận / Tóm lại:**
+* **in conclusion** / **to sum up** = tóm lại
+* **in the end** / **after all** = cuối cùng / rốt cuộc
+* **all in all** = nhìn chung
+
+**Thứ tự:**
+* **first / firstly** = đầu tiên
+* **then / next** = tiếp theo
+* **finally / lastly** = cuối cùng
+
+### 3.4. Liên từ tương quan (Correlative Conjunctions)
+
+Luôn đi theo cặp:
+
+* **both ... and** = cả ... và - *She speaks **both** English **and** French.*
+* **either ... or** = hoặc ... hoặc - *You can have **either** tea **or** coffee.*
+* **neither ... nor** = không ... cũng không - *He is **neither** rich **nor** famous.*
+* **not only ... but also** = không chỉ ... mà còn - *She is **not only** smart **but also** kind.*
+
+### 3.5. Cụm nối tự nhiên trong giao tiếp
+
+Ngoài các liên từ "chuẩn" ở trên, trong hội thoại hàng ngày người bản xứ hay dùng:
 
 * **and then** = rồi thì
 * **but actually** = nhưng thực ra
-* **so** = nên / vì vậy
-* **that's why** = đó là lý do tại sao
-* **for example** / **for instance** = ví dụ
-* **also** = cũng
-* **besides** = ngoài ra
-* **on the other hand** = ngược lại
+* **so basically** = nên cơ bản là
 * **at least** = ít nhất
-* **in addition** = thêm vào đó
-* **as a result** = kết quả là
-* **even though** = mặc dù
-* **in other words** = nói cách khác
+* **by the way** = tiện thể / nhân tiện
+* **anyway** = dù sao thì
 
 **Ví dụ:**
 
-* Bồi: *I was tired. I went home.*
-* Tự nhiên: **I was tired, so I went home.**
+* Bồi: *I was tired. I went home. I slept early.*
+* Tự nhiên: **I was tired, so I went home and then I slept early.**
+
+* Bồi: *The food was bad. The service was slow.*
+* Tự nhiên: **Not only was the food bad, but the service was also really slow.**
 
 ---
 
@@ -173,7 +256,7 @@ Phrasal verbs (cụm động từ) rất thường gặp trong giao tiếp. Nế
 
 ---
 
-## 8. Collocations — Cụm từ đi kèm cố định
+## 8. Collocations - Cụm từ đi kèm cố định
 
 Trong tiếng Anh, một số từ **luôn đi kèm với nhau** (collocation). Dùng sai cặp từ sẽ nghe rất lạ dù ngữ pháp đúng:
 
@@ -213,7 +296,7 @@ Một số idiom rất phổ biến trong giao tiếp hàng ngày:
 
 **Ví dụ:**
 
-* *"How was the test?" — "**A piece of cake!**"*
+* *"How was the test?" - "**A piece of cake!**"*
 * *"Let's **hit the road** before it gets dark."*
 
 ---

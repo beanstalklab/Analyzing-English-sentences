@@ -6,10 +6,11 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { AnalyzeResponse, PosWord, SpeechChunk, DBQuestion, UserProgressStats, HistoryItem, ChatMessage } from './types/api';
 
-const ANALYZE_API_URL = 'http://127.0.0.1:8000/api/v1/analyze';
-const PRACTICE_API_URL = 'http://127.0.0.1:8000/api/v1/practice';
-const THEORY_API_URL = 'http://127.0.0.1:8000/api/v1/theory/pos';
-const PHRASES_API_URL = 'http://127.0.0.1:8000/api/v1/theory/phrases';
+const API_BASE = `http://${window.location.hostname}:8000/api/v1`;
+const ANALYZE_API_URL = `${API_BASE}/analyze`;
+const PRACTICE_API_URL = `${API_BASE}/practice`;
+const THEORY_API_URL = `${API_BASE}/theory/pos`;
+const PHRASES_API_URL = `${API_BASE}/theory/phrases`;
 
 type MarkdownChildrenProps = {
   children?: ReactNode;
