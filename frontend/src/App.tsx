@@ -1,14 +1,15 @@
 import { useState, useEffect, useMemo, useRef, useCallback, isValidElement, type PointerEvent as ReactPointerEvent, type ReactNode, type WheelEvent as ReactWheelEvent } from 'react';
 import axios from 'axios';
-import { Loader2, Mic, BookOpen, Volume2, Activity, Search, BrainCircuit, CheckCircle2, XCircle, ArrowRight, RotateCcw, ChevronRight } from 'lucide-react';
+import { Loader2, Mic, BookOpen, Volume2, Activity, Search, BrainCircuit, CheckCircle2, XCircle, ArrowRight, RotateCcw, ChevronRight, ChevronLeft, LayoutDashboard, UploadCloud, PieChart, Clock, Filter, ChevronDown, ChevronUp, MessageSquare, Coffee, Briefcase, Plane, Send, Lightbulb, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { AnalyzeResponse, PosWord, SpeechChunk, WordFormQuestion } from './types/api';
+import type { AnalyzeResponse, PosWord, SpeechChunk, DBQuestion, UserProgressStats, HistoryItem, ChatMessage } from './types/api';
 
 const ANALYZE_API_URL = 'http://127.0.0.1:8000/api/v1/analyze';
-const PRACTICE_API_URL = 'http://127.0.0.1:8000/api/v1/word-form/generate';
+const PRACTICE_API_URL = 'http://127.0.0.1:8000/api/v1/practice';
 const THEORY_API_URL = 'http://127.0.0.1:8000/api/v1/theory/pos';
+const PHRASES_API_URL = 'http://127.0.0.1:8000/api/v1/theory/phrases';
 
 type MarkdownChildrenProps = {
   children?: ReactNode;
@@ -27,10 +28,12 @@ function App() {
   const [error, setError] = useState('');
   
   // App State
-  const [mode, setMode] = useState<'analyze' | 'learn' | 'practice'>('analyze');
-  const [activeTopic, setActiveTopic] = useState<'pos'>('pos');
+  const [mode, setMode] = useState<'analyze' | 'learn' | 'practice' | 'dashboard'>('analyze');
+  const [activeTopic, setActiveTopic] = useState<'pos' | 'phrases' | 'conversation'>('pos');
   const [theoryContent, setTheoryContent] = useState<string>('');
   const [theoryLoading, setTheoryLoading] = useState(false);
+  const [phrasesContent, setPhrasesContent] = useState<string>('');
+  const [phrasesLoading, setPhrasesLoading] = useState(false);
   const [activeId, setActiveId] = useState<string>('');
   const tocScrollRef = useRef<HTMLDivElement>(null);
   const tocScrollbarRef = useRef<HTMLDivElement>(null);
@@ -56,9 +59,13 @@ function App() {
   };
 
   // TOC State
+  // Determine which content to use for TOC based on active topic
+  const activeLearnContent = activeTopic === 'phrases' ? phrasesContent : theoryContent;
+  const activeLearnLoading = activeTopic === 'phrases' ? phrasesLoading : theoryLoading;
+
   const toc = useMemo(() => {
-    if (!theoryContent) return [];
-    const lines = theoryContent.split('\n');
+    if (!activeLearnContent) return [];
+    const lines = activeLearnContent.split('\n');
     return lines
       .filter(line => line.startsWith('# ') || line.startsWith('## ') || line.startsWith('### '))
       .map(line => {
@@ -70,7 +77,7 @@ function App() {
         const id = slugify(text);
         return { level, text, id };
       });
-  }, [theoryContent]);
+  }, [activeLearnContent]);
 
   const getTocMetrics = useCallback((): TocMetrics | null => {
     const scrollEl = tocScrollRef.current;
@@ -143,7 +150,7 @@ function App() {
       window.removeEventListener('resize', requestUpdate);
       if (frame) cancelAnimationFrame(frame);
     };
-  }, [mode, toc.length, theoryLoading, syncTocThumb]);
+  }, [mode, toc.length, theoryLoading, phrasesLoading, syncTocThumb]);
 
   useEffect(() => {
     const handlePointerMove = (event: globalThis.PointerEvent) => {
@@ -221,7 +228,7 @@ function App() {
 
   // Track active heading
   useEffect(() => {
-    if (mode !== 'learn' || theoryLoading || !theoryContent) return;
+    if (mode !== 'learn' || activeLearnLoading || !activeLearnContent) return;
     
     // Small delay to ensure ReactMarkdown has rendered to DOM
     const timer = setTimeout(() => {
@@ -253,13 +260,38 @@ function App() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [mode, theoryContent, theoryLoading]);
+  }, [mode, activeLearnContent, activeLearnLoading, activeTopic]);
 
   // Practice State
-  const [question, setQuestion] = useState<WordFormQuestion | null>(null);
+  const [question, setQuestion] = useState<DBQuestion | null>(null);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
   const [practiceLoading, setPracticeLoading] = useState(false);
+  const [viewOffset, setViewOffset] = useState(0);
+  const [practiceMode, setPracticeMode] = useState<'new' | 'retry'>('new');
+  
+  // Chat State
+  const [activeScenario, setActiveScenario] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [conversationId, setConversationId] = useState<number | null>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  
+  // Dashboard State
+  const [importText, setImportText] = useState('');
+  const [importLoading, setImportLoading] = useState(false);
+  const [stats, setStats] = useState<UserProgressStats | null>(null);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [dashboardTab, setDashboardTab] = useState<'stats' | 'import'>('stats');
+  const [historyFilter, setHistoryFilter] = useState<'all' | 'correct' | 'incorrect'>('all');
+  const [expandedHistoryId, setExpandedHistoryId] = useState<number | null>(null);
+
+  const filteredHistory = useMemo(() => {
+    if (historyFilter === 'correct') return history.filter(h => h.is_correct);
+    if (historyFilter === 'incorrect') return history.filter(h => !h.is_correct);
+    return history;
+  }, [history, historyFilter]);
 
   const handleAnalyze = async () => {
     if (!text.trim()) {
@@ -286,24 +318,218 @@ function App() {
     setQuestion(null);
     setSelectedIdx(null);
     setIsAnswered(false);
+    setViewOffset(0);
     setError('');
 
     try {
-      const response = await axios.post<WordFormQuestion>(PRACTICE_API_URL);
+      const response = await axios.get<DBQuestion>(`${PRACTICE_API_URL}/question?retry_incorrect=${practiceMode === 'retry'}`);
       setQuestion(response.data);
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error(err);
-      setError('Không thể tải câu hỏi. Vui lòng thử lại.');
+      if (err.response?.status === 404) {
+        setError(err.response.data.detail || 'Ngân hàng câu hỏi trống.');
+      } else {
+        setError('Không thể tải câu hỏi. Vui lòng thử lại.');
+      }
     } finally {
       setPracticeLoading(false);
     }
   };
 
-  const handleSelectOption = (idx: number) => {
-    if (isAnswered) return;
+  const handlePracticeModeChange = (newMode: 'new' | 'retry') => {
+    if (practiceMode === newMode) return;
+    setPracticeMode(newMode);
+    setQuestion(null);
+    setIsAnswered(false);
+    setSelectedIdx(null);
+    setViewOffset(0);
+    setError('');
+  };
+
+  const handleStartConversation = async (scenario: string) => {
+    setActiveScenario(scenario);
+    setChatLoading(true);
+    setChatMessages([]);
+    try {
+      const res = await axios.post(`${PRACTICE_API_URL}/conversation/start`, { scenario });
+      setConversationId(res.data.conversation_id);
+      setChatMessages([
+        { role: 'assistant', content: res.data.reply }
+      ]);
+    } catch (err) {
+      console.error(err);
+      setError('Error starting conversation.');
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const handleSendChatMessage = async () => {
+    if (!chatInput.trim() || !conversationId) return;
+    
+    const userMsg = chatInput.trim();
+    setChatInput('');
+    setChatMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    setChatLoading(true);
+    
+    try {
+      const res = await axios.post(`${PRACTICE_API_URL}/conversation/chat`, {
+        conversation_id: conversationId,
+        message: userMsg
+      });
+      
+      if (res.data.correction) {
+        setChatMessages(prev => {
+          const newMsgs = [...prev];
+          const lastUserIdx = newMsgs.map(m => m.role).lastIndexOf('user');
+          if (lastUserIdx >= 0) {
+            newMsgs[lastUserIdx] = { ...newMsgs[lastUserIdx], correction_note: res.data.correction };
+          }
+          return newMsgs;
+        });
+      }
+      
+      setChatMessages(prev => [...prev, { role: 'assistant', content: res.data.reply }]);
+    } catch (err) {
+      console.error(err);
+      setError('Error sending message.');
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatMessages, chatLoading]);
+
+  const handleSelectOption = async (idx: number) => {
+    if (isAnswered || !question) return;
     setSelectedIdx(idx);
     setIsAnswered(true);
+    
+    try {
+      await axios.post(`${PRACTICE_API_URL}/answer`, {
+        question_id: question.id,
+        selected_answer: question.options[idx]
+      });
+      handleFetchStats();
+    } catch (err) {
+      console.error("Error saving answer", err);
+    }
   };
+
+  const handleImport = async () => {
+    if (!importText.trim()) return;
+    setImportLoading(true);
+    setError('');
+    try {
+      const res = await axios.post(`${PRACTICE_API_URL}/import`, { raw_text: importText });
+      let msg = `Nhập thành công ${res.data.inserted} câu hỏi mới!`;
+      if (res.data.skipped > 0) {
+        msg += `\nĐã bỏ qua ${res.data.skipped} câu bị trùng lặp.`;
+      }
+      alert(msg);
+      setImportText('');
+      handleFetchStats();
+    } catch (err: any) {
+      console.error(err);
+      setError(err.response?.data?.detail || 'Lỗi khi import câu hỏi');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleFetchStats = async () => {
+    try {
+      const [statsRes, historyRes] = await Promise.all([
+        axios.get<UserProgressStats>(`${PRACTICE_API_URL}/stats`),
+        axios.get<HistoryItem[]>(`${PRACTICE_API_URL}/history`)
+      ]);
+      setStats(statsRes.data);
+      setHistory(historyRes.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleResetProgress = async () => {
+    if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử làm bài? Hành động này không thể hoàn tác.')) {
+      try {
+        await axios.delete(`${PRACTICE_API_URL}/progress`);
+        alert('Đã xóa lịch sử làm bài thành công. Bạn có thể bắt đầu làm lại từ đầu!');
+        handleFetchStats();
+      } catch (err) {
+        console.error(err);
+        alert('Lỗi khi xóa lịch sử làm bài.');
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (mode === 'dashboard' || mode === 'practice') {
+      handleFetchStats();
+    }
+  }, [mode]);
+
+  const maxOffset = useMemo(() => isAnswered ? history.length : history.length, [history.length, isAnswered]);
+
+  const handlePrevious = useCallback(() => {
+    setViewOffset(v => Math.min(v + 1, maxOffset));
+  }, [maxOffset]);
+
+  const handleNext = useCallback(() => {
+    setViewOffset(v => {
+      if (v > 0) return v - 1;
+      if (v === 0 && isAnswered) {
+        handleFetchQuestion();
+        return 0;
+      }
+      return v;
+    });
+  }, [isAnswered]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (mode !== 'practice') return;
+      if (e.ctrlKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handlePrevious();
+      } else if (e.ctrlKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        handleNext();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mode, handlePrevious, handleNext]);
+
+  const displayItem = useMemo(() => {
+    if (viewOffset === 0) {
+      return { type: 'live', question, selectedIdx, isAnswered };
+    }
+    const historyIdx = isAnswered ? viewOffset - 1 : viewOffset - 1; 
+    // Wait: if viewOffset=1, it's history[0]. Regardless of isAnswered, history[0] is always the previous question!
+    // Why? Because if `isAnswered` is true, the current question is actually `history[0]`.
+    // Wait, if `isAnswered` is true, and I am viewing viewOffset=1, I want to see the PREVIOUS question which is `history[1]`.
+    // Let's adjust historyIdx logic:
+    const idx = isAnswered ? viewOffset : viewOffset - 1;
+    if (idx >= 0 && idx < history.length) {
+      return { type: 'history', item: history[idx] };
+    }
+    return null;
+  }, [viewOffset, isAnswered, question, selectedIdx, history]);
+
+  const dQuestion = displayItem?.type === 'history' ? displayItem.item : displayItem?.question;
+  const dOptions = displayItem?.type === 'history' ? displayItem.item.options : displayItem?.question?.options;
+  const dCorrectAnswer = displayItem?.type === 'history' ? displayItem.item.correct_answer : displayItem?.question?.correct_answer;
+  const dExplanation = displayItem?.type === 'history' ? displayItem.item.explanation : displayItem?.question?.explanation;
+  const dWordRoot = displayItem?.type === 'history' ? displayItem.item.word_root : displayItem?.question?.word_root;
+  const dSentence = displayItem?.type === 'history' ? displayItem.item.sentence : displayItem?.question?.sentence;
+  const dIsAnswered = displayItem?.type === 'history' ? true : displayItem?.isAnswered;
+  const dSelectedIdx = displayItem?.type === 'history' ? displayItem.item.options.findIndex(o => o === displayItem.item.selected_answer) : displayItem?.selectedIdx;
+
 
   const handleFetchTheory = async () => {
     setTheoryLoading(true);
@@ -316,6 +542,20 @@ function App() {
       setError('Không thể tải nội dung lý thuyết.');
     } finally {
       setTheoryLoading(false);
+    }
+  };
+
+  const handleFetchPhrases = async () => {
+    setPhrasesLoading(true);
+    setError('');
+    try {
+      const response = await axios.get<{content: string}>(PHRASES_API_URL);
+      setPhrasesContent(response.data.content);
+    } catch (err: unknown) {
+      console.error(err);
+      setError('Không thể tải nội dung cụm từ.');
+    } finally {
+      setPhrasesLoading(false);
     }
   };
 
@@ -443,6 +683,7 @@ function App() {
                 onClick={() => {
                   setMode('learn');
                   if (!theoryContent && activeTopic === 'pos') handleFetchTheory();
+                  if (!phrasesContent && activeTopic === 'phrases') handleFetchPhrases();
                 }}
                 className={`flex items-center gap-2 px-8 py-2.5 rounded-xl text-sm font-bold transition-all ${
                   mode === 'learn' 
@@ -467,6 +708,17 @@ function App() {
                 <BrainCircuit className="w-4 h-4" />
                 Practice
               </button>
+              <button
+                onClick={() => setMode('dashboard')}
+                className={`flex items-center gap-2 px-8 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                  mode === 'dashboard' 
+                    ? 'bg-[#5a67d8] text-white shadow-md' 
+                    : 'text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                Data
+              </button>
             </div>
 
             {/* Sub-Topic Tabs (Only for Learn and Practice) */}
@@ -474,7 +726,10 @@ function App() {
               <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mr-2">Chủ đề:</span>
                 <button
-                  onClick={() => setActiveTopic('pos')}
+                  onClick={() => {
+                    setActiveTopic('pos');
+                    if (mode === 'learn' && !theoryContent) handleFetchTheory();
+                  }}
                   className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border ${
                     activeTopic === 'pos'
                       ? 'bg-indigo-50 text-indigo-600 border-indigo-200'
@@ -483,22 +738,52 @@ function App() {
                 >
                   Từ loại (POS)
                 </button>
-                <span className="text-xs font-medium text-slate-300 italic px-2">More coming soon...</span>
+                {mode === 'learn' && (
+                  <button
+                    onClick={() => {
+                      setActiveTopic('phrases');
+                      if (!phrasesContent) handleFetchPhrases();
+                    }}
+                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border flex items-center gap-1.5 ${
+                      activeTopic === 'phrases'
+                        ? 'bg-indigo-50 text-indigo-600 border-indigo-200'
+                        : 'text-slate-500 border-transparent hover:border-slate-200'
+                    }`}
+                  >
+                    <Lightbulb className="w-3 h-3" />
+                    Cụm từ (Phrases)
+                  </button>
+                )}
+                {mode === 'practice' && (
+                  <button
+                    onClick={() => setActiveTopic('conversation')}
+                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border flex items-center gap-1.5 ${
+                      activeTopic === 'conversation'
+                        ? 'bg-indigo-50 text-indigo-600 border-indigo-200'
+                        : 'text-slate-500 border-transparent hover:border-slate-200'
+                    }`}
+                  >
+                    <MessageSquare className="w-3 h-3" />
+                    Giao tiếp (Conversation)
+                  </button>
+                )}
               </div>
             )}
           </div>
 
           <div>
             <h1 className="text-4xl font-bold text-slate-800 tracking-tight flex justify-center items-center gap-3">
-              {mode === 'analyze' ? <Mic className="w-9 h-9" /> : mode === 'learn' ? <BookOpen className="w-9 h-9" /> : <BrainCircuit className="w-9 h-9" />}
-              {mode === 'analyze' ? 'English Analyzer' : mode === 'learn' ? 'Learning: Theory' : 'Practice: Exercise'}
+              {mode === 'analyze' ? <Mic className="w-9 h-9" /> : mode === 'learn' ? <BookOpen className="w-9 h-9" /> : mode === 'practice' ? <BrainCircuit className="w-9 h-9" /> : <LayoutDashboard className="w-9 h-9" />}
+              {mode === 'analyze' ? 'English Analyzer' : mode === 'learn' ? 'Learning: Theory' : mode === 'practice' ? 'Practice: Exercise' : 'Data Dashboard'}
             </h1>
             <p className="mt-3 text-base text-slate-700 font-medium">
               {mode === 'analyze' 
                 ? 'English grammar and pronunciation analyzer for Vietnamese learners.'
                 : mode === 'learn'
                   ? 'Build your foundational knowledge with detailed theory.'
-                  : 'Sharpen your skills with AI-powered practice questions.'}
+                  : mode === 'practice'
+                    ? 'Sharpen your skills with AI-powered practice questions.'
+                    : 'Manage question bank and track your learning progress.'}
             </p>
           </div>
         </div>
@@ -654,12 +939,12 @@ function App() {
           </>
         ) : mode === 'learn' ? (
           <div className="animate-in fade-in duration-500">
-            {theoryLoading ? (
+            {activeLearnLoading ? (
               <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-12 flex flex-col items-center justify-center space-y-4">
                 <Loader2 className="w-12 h-12 text-indigo-500 animate-spin" />
                 <p className="text-slate-500 font-medium">Preparing your lesson...</p>
               </div>
-            ) : activeTopic === 'pos' ? (
+            ) : (activeTopic === 'pos' || activeTopic === 'phrases') && activeLearnContent ? (
               <div className="relative">
                 {/* Sidebar TOC - Positioned exactly 32px (mr-8) to the left of the content card */}
                 <div className="hidden xl:block absolute right-full top-0 h-full">
@@ -728,7 +1013,7 @@ function App() {
                     remarkPlugins={[remarkGfm]}
                     components={MarkdownComponents}
                   >
-                    {theoryContent}
+                    {activeLearnContent}
                   </ReactMarkdown>
                 </div>
               </div>
@@ -738,113 +1023,281 @@ function App() {
               </div>
             )}
           </div>
-        ) : (
+        ) : mode === 'practice' ? (
           <div className="space-y-6">
+            {activeTopic === 'pos' && (
+              <div className="flex justify-end">
+                <div className="bg-slate-200/50 p-1 rounded-xl flex gap-1 shadow-inner">
+                  <button
+                    onClick={() => handlePracticeModeChange('new')}
+                    className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 ${
+                      practiceMode === 'new' ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-slate-200/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
+                    }`}
+                  >
+                    <BookOpen className="w-4 h-4" /> New Questions
+                  </button>
+                  <button
+                    onClick={() => handlePracticeModeChange('retry')}
+                    className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 ${
+                      practiceMode === 'retry' ? 'bg-white text-red-600 shadow-sm ring-1 ring-slate-200/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
+                    }`}
+                  >
+                    <RotateCcw className="w-4 h-4" /> Retry Incorrect
+                  </button>
+                </div>
+              </div>
+            )}
             {/* Practice Mode UI */}
             {practiceLoading ? (
               <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-12 flex flex-col items-center justify-center space-y-4">
                 <Loader2 className="w-12 h-12 text-indigo-500 animate-spin" />
-                <p className="text-slate-500 font-medium animate-pulse">Generating TOEIC question...</p>
+                <p className="text-slate-500 font-medium animate-pulse">Generating content...</p>
               </div>
-            ) : activeTopic === 'pos' && question ? (
-              <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
-                <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
-                  <div className="bg-indigo-50 border-b border-indigo-100 px-8 py-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-widest">
-                        Word Form Root: {question.word_root}
-                      </span>
-                    </div>
-                    <p className="text-2xl font-semibold text-slate-800 leading-relaxed">
-                      {question.sentence.split('___').map((part, i, arr) => (
-                        <span key={i}>
-                          {part}
-                          {i < arr.length - 1 && (
-                            <span className="mx-1 px-4 py-1 bg-slate-200 rounded-lg text-transparent select-none border-b-2 border-indigo-400">
-                              ____
-                            </span>
-                          )}
+            ) : activeTopic === 'pos' ? (
+              dQuestion ? (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
+                  <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+                    <div className="bg-indigo-50 border-b border-indigo-100 px-8 py-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-widest">
+                          Word Form Root: {dWordRoot}
                         </span>
-                      ))}
-                    </p>
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={handlePrevious}
+                            disabled={viewOffset >= maxOffset}
+                            className="flex items-center gap-1 text-sm font-bold text-indigo-600 bg-white/60 hover:bg-white px-3 py-1.5 rounded-full shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                            title="Previous Question (Ctrl + ←)"
+                          >
+                            <ChevronLeft className="w-4 h-4" /> Prev
+                          </button>
+                          <button 
+                            onClick={handleNext}
+                            disabled={viewOffset === 0 && !isAnswered}
+                            className="flex items-center gap-1 text-sm font-bold text-indigo-600 bg-white/60 hover:bg-white px-3 py-1.5 rounded-full shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                            title="Next Question (Ctrl + →)"
+                          >
+                            Next <ChevronRight className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-2xl font-semibold text-slate-800 leading-relaxed">
+                        {dSentence?.split('___').map((part: string, i: number, arr: string[]) => (
+                          <span key={i}>
+                            {part}
+                            {i < arr.length - 1 && (
+                              <span className={`inline-block mx-2 min-w-[120px] border-b-2 text-center pb-1 ${
+                                dIsAnswered && dSelectedIdx !== null && dOptions?.[dSelectedIdx] === dCorrectAnswer
+                                  ? 'border-green-500 text-green-600 font-bold'
+                                  : dIsAnswered && dSelectedIdx !== null
+                                    ? 'border-red-500 text-red-600 font-bold'
+                                    : 'border-slate-300'
+                              }`}>
+                                {dIsAnswered && dSelectedIdx !== null ? dOptions[dSelectedIdx] : ''}
+                              </span>
+                            )}
+                          </span>
+                        ))}
+                      </p>
+                    </div>
+                    
+                    <div className="p-8">
+                      <div className="grid gap-4 mb-8">
+                        {dOptions?.map((opt: string, idx: number) => {
+                          const isSelected = dSelectedIdx === idx;
+                          const isCorrect = opt === dCorrectAnswer;
+                          
+                          let btnClass = "relative flex items-center justify-between p-5 rounded-2xl border-2 text-left font-semibold text-lg transition-all ";
+                          if (!dIsAnswered) {
+                            btnClass += "border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 text-slate-700 cursor-pointer active:scale-[0.98]";
+                          } else {
+                            btnClass += "cursor-default ";
+                            if (isCorrect) {
+                              btnClass += "border-green-500 bg-green-50 text-green-700";
+                            } else if (isSelected && !isCorrect) {
+                              btnClass += "border-red-500 bg-red-50 text-red-700";
+                            } else {
+                              btnClass += "border-slate-200 opacity-50 bg-slate-50";
+                            }
+                          }
+                          
+                          return (
+                            <button
+                              key={idx}
+                              onClick={() => handleSelectOption(idx)}
+                              disabled={dIsAnswered}
+                              className={btnClass}
+                            >
+                              <span>{opt}</span>
+                              {dIsAnswered && isCorrect && <CheckCircle2 className="w-6 h-6 text-green-500" />}
+                              {dIsAnswered && isSelected && !isCorrect && <XCircle className="w-6 h-6 text-red-500" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {dIsAnswered && (
+                        <div className="p-8 pt-0 animate-in zoom-in-95 duration-300">
+                          <div className={`rounded-2xl p-6 ${dSelectedIdx !== null && dOptions?.[dSelectedIdx] === dCorrectAnswer ? 'bg-green-50 border border-green-100' : 'bg-amber-50 border border-amber-100'}`}>
+                            <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
+                              {dSelectedIdx !== null && dOptions?.[dSelectedIdx] === dCorrectAnswer 
+                                ? <><CheckCircle2 className="w-5 h-5 text-green-600" /> Correct!</>
+                                : <><RotateCcw className="w-5 h-5 text-amber-600" /> Explanation</>
+                              }
+                            </h3>
+                            <p className="text-slate-700 leading-relaxed whitespace-pre-line">
+                              {dExplanation}
+                            </p>
+                          </div>
+                          
+                          {viewOffset === 0 && (
+                            <button
+                              onClick={handleFetchQuestion}
+                              className="mt-6 w-full flex items-center justify-center py-4 rounded-full bg-slate-900 text-white font-bold hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl active:scale-[0.98]"
+                            >
+                              Next Question
+                              <ArrowRight className="w-5 h-5 ml-2" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-12 text-center space-y-6">
+                  <div className="bg-indigo-50 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto">
+                    <BrainCircuit className="w-10 h-10 text-indigo-500" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-800">Ready to practice?</h2>
+                    <p className="text-slate-500 mt-2">Test your knowledge of English word forms.</p>
+                  </div>
+                  <button
+                    onClick={handleFetchQuestion}
+                    className="px-8 py-4 bg-[#5a67d8] text-white font-bold rounded-full hover:bg-[#4c51bf] transition-all shadow-lg"
+                  >
+                    Start Practicing
+                  </button>
+                </div>
+              )
+            ) : activeTopic === 'conversation' ? (
+              !activeScenario ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-4">
+                  {[
+                    { id: 'At a Coffee Shop', icon: <Coffee className="w-8 h-8 text-amber-600" />, title: 'Coffee Shop', desc: 'Order drinks and make small talk.', color: 'bg-amber-50 border-amber-200' },
+                    { id: 'In an Office Meeting', icon: <Briefcase className="w-8 h-8 text-blue-600" />, title: 'Office Meeting', desc: 'Discuss projects and share updates.', color: 'bg-blue-50 border-blue-200' },
+                    { id: 'At the Airport', icon: <Plane className="w-8 h-8 text-sky-600" />, title: 'Airport', desc: 'Check-in, security, and directions.', color: 'bg-sky-50 border-sky-200' },
+                    { id: 'Free Talk', icon: <MessageSquare className="w-8 h-8 text-indigo-600" />, title: 'Free Talk', desc: 'Chat about anything you like.', color: 'bg-indigo-50 border-indigo-200' },
+                  ].map(s => (
+                    <button
+                      key={s.id}
+                      onClick={() => handleStartConversation(s.id)}
+                      className={`p-6 rounded-2xl border text-left transition-all hover:shadow-md hover:scale-[1.02] ${s.color}`}
+                    >
+                      <div className="bg-white w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-sm">
+                        {s.icon}
+                      </div>
+                      <h3 className="text-xl font-bold text-slate-800 mb-2">{s.title}</h3>
+                      <p className="text-slate-600 font-medium">{s.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden flex flex-col h-[600px] animate-in fade-in zoom-in-95">
+                  <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-indigo-100 p-2 rounded-xl">
+                        <MessageSquare className="w-5 h-5 text-indigo-600" />
+                      </div>
+                      <div>
+                        <h2 className="font-bold text-slate-800">{activeScenario}</h2>
+                        <p className="text-xs text-slate-500 font-medium">Practice speaking naturally</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => { setActiveScenario(null); setChatMessages([]); setConversationId(null); }}
+                      className="px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-200 hover:text-slate-700 rounded-xl transition-colors"
+                    >
+                      Exit Chat
+                    </button>
                   </div>
                   
-                  <div className="p-8 grid gap-4 sm:grid-cols-2">
-                    {question.options.map((opt, idx) => {
-                      const isSelected = selectedIdx === idx;
-                      const isCorrect = opt.is_correct;
-                      let btnClass = "relative flex items-center justify-between p-5 rounded-2xl border-2 text-lg font-medium transition-all duration-200 ";
-                      
-                      if (!isAnswered) {
-                        btnClass += "border-slate-100 bg-slate-50 hover:border-indigo-300 hover:bg-white hover:shadow-md text-slate-700";
-                      } else {
-                        if (isCorrect) {
-                          btnClass += "border-green-500 bg-green-50 text-green-700 shadow-sm";
-                        } else if (isSelected) {
-                          btnClass += "border-red-500 bg-red-50 text-red-700 shadow-sm";
-                        } else {
-                          btnClass += "border-slate-50 bg-slate-25 text-slate-400 opacity-60";
-                        }
-                      }
-
-                      return (
-                        <button
-                          key={idx}
-                          onClick={() => handleSelectOption(idx)}
-                          disabled={isAnswered}
-                          className={btnClass}
-                        >
-                          <span>{opt.text}</span>
-                          {isAnswered && isCorrect && <CheckCircle2 className="w-6 h-6 text-green-500" />}
-                          {isAnswered && isSelected && !isCorrect && <XCircle className="w-6 h-6 text-red-500" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {isAnswered && (
-                    <div className="p-8 pt-0 animate-in zoom-in-95 duration-300">
-                      <div className={`rounded-2xl p-6 ${selectedIdx !== null && question.options[selectedIdx].is_correct ? 'bg-green-50 border border-green-100' : 'bg-amber-50 border border-amber-100'}`}>
-                        <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
-                          {selectedIdx !== null && question.options[selectedIdx].is_correct 
-                            ? <><CheckCircle2 className="w-5 h-5 text-green-600" /> Correct!</>
-                            : <><RotateCcw className="w-5 h-5 text-amber-600" /> Explanation</>
-                          }
-                        </h3>
-                        <p className="text-slate-700 leading-relaxed whitespace-pre-line">
-                          {question.explanation}
-                        </p>
+                  <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {chatMessages.map((msg, i) => (
+                      <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                        <div className={`flex items-end gap-2 max-w-[85%] sm:max-w-[75%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                          {msg.role === 'assistant' ? (
+                            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 mb-1">
+                              <BrainCircuit className="w-4 h-4 text-indigo-600" />
+                            </div>
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0 mb-1">
+                              <User className="w-4 h-4 text-slate-600" />
+                            </div>
+                          )}
+                          <div className={`px-5 py-3 rounded-2xl ${
+                            msg.role === 'user' 
+                              ? 'bg-gradient-to-br from-[#5a67d8] to-[#4c51bf] text-white rounded-br-sm shadow-md' 
+                              : 'bg-slate-100 text-slate-800 rounded-bl-sm border border-slate-200'
+                          }`}>
+                            <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                          </div>
+                        </div>
+                        
+                        {msg.role === 'user' && msg.correction_note && (
+                          <div className="mt-2 mr-10 max-w-[70%]">
+                            <details className="group">
+                              <summary className="flex items-center gap-1.5 text-xs font-bold text-amber-600 cursor-pointer hover:text-amber-700 select-none list-none">
+                                <Lightbulb className="w-4 h-4" /> 
+                                <span>Tip for natural speaking</span>
+                                <ChevronDown className="w-3 h-3 group-open:rotate-180 transition-transform" />
+                              </summary>
+                              <div className="mt-2 p-3 bg-amber-50 border border-amber-100 rounded-xl text-sm text-slate-700 leading-relaxed shadow-sm">
+                                {msg.correction_note}
+                              </div>
+                            </details>
+                          </div>
+                        )}
                       </div>
-                      
+                    ))}
+                    {chatLoading && (
+                      <div className="flex items-end gap-2 max-w-[80%]">
+                        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 mb-1">
+                          <BrainCircuit className="w-4 h-4 text-indigo-600" />
+                        </div>
+                        <div className="px-5 py-4 rounded-2xl bg-slate-100 border border-slate-200 rounded-bl-sm flex gap-1.5">
+                          <div className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                          <div className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                          <div className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="p-4 bg-white border-t border-slate-100 shrink-0">
+                    <div className="flex gap-2 relative">
+                      <input
+                        type="text"
+                        value={chatInput}
+                        onChange={e => setChatInput(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleSendChatMessage()}
+                        placeholder="Type your message..."
+                        disabled={chatLoading}
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-full pl-6 pr-14 py-3.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 disabled:opacity-50"
+                      />
                       <button
-                        onClick={handleFetchQuestion}
-                        className="mt-6 w-full flex items-center justify-center py-4 rounded-full bg-slate-900 text-white font-bold hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl active:scale-[0.98]"
+                        onClick={handleSendChatMessage}
+                        disabled={chatLoading || !chatInput.trim()}
+                        className="absolute right-2 top-2 bottom-2 aspect-square bg-[#5a67d8] hover:bg-[#4c51bf] text-white rounded-full flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                       >
-                        Next Question
-                        <ArrowRight className="w-5 h-5 ml-2" />
+                        <Send className="w-4 h-4 ml-0.5" />
                       </button>
                     </div>
-                  )}
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-12 text-center space-y-6">
-                <div className="bg-indigo-50 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto">
-                  <BrainCircuit className="w-10 h-10 text-indigo-500" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-slate-800">Ready to practice?</h2>
-                  <p className="text-slate-500 mt-2">Test your knowledge of English word forms.</p>
-                </div>
-                <button
-                  onClick={handleFetchQuestion}
-                  className="px-8 py-4 bg-[#5a67d8] text-white font-bold rounded-full hover:bg-[#4c51bf] transition-all shadow-lg"
-                >
-                  Start Practicing
-                </button>
-              </div>
-            )}
-            
+              )
+            ) : null}
             {error && mode === 'practice' && (
               <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-red-600 text-center font-medium">
                 {error}
@@ -852,7 +1305,243 @@ function App() {
               </div>
             )}
           </div>
-        )}
+        ) : mode === 'dashboard' ? (
+          <div className="space-y-6 animate-in fade-in duration-500">
+            <div className="flex bg-white rounded-2xl shadow-sm border border-slate-200 p-1 mb-6">
+              <button
+                onClick={() => setDashboardTab('stats')}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold transition-all ${
+                  dashboardTab === 'stats' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                <PieChart className="w-5 h-5" />
+                History & Stats
+              </button>
+              <button
+                onClick={() => setDashboardTab('import')}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold transition-all ${
+                  dashboardTab === 'import' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                <UploadCloud className="w-5 h-5" />
+                Import Questions
+              </button>
+            </div>
+
+            {dashboardTab === 'stats' && stats && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <p className="text-slate-500 font-medium mb-1">Total Questions</p>
+                    <p className="text-3xl font-black text-slate-800">{stats.total_questions}</p>
+                  </div>
+                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <p className="text-slate-500 font-medium mb-1">Answered</p>
+                    <p className="text-3xl font-black text-indigo-600">{stats.answered_questions}</p>
+                  </div>
+                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-green-200">
+                    <p className="text-green-600 font-medium mb-1">Correct</p>
+                    <p className="text-3xl font-black text-green-700">{stats.correct_answers}</p>
+                  </div>
+                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-red-200">
+                    <p className="text-red-600 font-medium mb-1">Incorrect</p>
+                    <p className="text-3xl font-black text-red-700">{stats.incorrect_answers}</p>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                  <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-5 h-5 text-indigo-600" />
+                      <h2 className="text-lg font-semibold text-slate-800">Recent History</h2>
+                    </div>
+                    
+                    <div className="flex items-center gap-4">
+                      <div className="flex bg-slate-200/50 p-1 rounded-lg">
+                        {(['all', 'correct', 'incorrect'] as const).map(filter => (
+                          <button
+                            key={filter}
+                            onClick={() => setHistoryFilter(filter)}
+                            className={`px-4 py-1.5 text-sm font-medium rounded-md capitalize transition-all ${
+                              historyFilter === filter 
+                                ? 'bg-white text-slate-800 shadow-sm' 
+                                : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                          >
+                            {filter}
+                          </button>
+                        ))}
+                      </div>
+                      
+                      <button
+                        onClick={handleResetProgress}
+                        className="flex items-center gap-2 px-4 py-1.5 text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors border border-red-100"
+                        title="Delete all progress to start over"
+                      >
+                        <RotateCcw className="w-4 h-4" /> Reset Progress
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="divide-y divide-slate-100 max-h-[600px] overflow-y-auto">
+                    {filteredHistory.length === 0 ? (
+                      <div className="p-12 flex flex-col items-center text-center">
+                        <Filter className="w-10 h-10 text-slate-300 mb-3" />
+                        <p className="text-slate-500 font-medium">No questions found for this filter.</p>
+                      </div>
+                    ) : (
+                      filteredHistory.map((item, idx) => {
+                        const isExpanded = expandedHistoryId === item.id;
+                        
+                        return (
+                          <div 
+                            key={idx} 
+                            className={`group relative transition-colors ${
+                              item.is_correct ? 'hover:bg-green-50/30' : 'hover:bg-red-50/30'
+                            } ${isExpanded ? 'bg-slate-50' : 'bg-white'}`}
+                          >
+                            <div className={`absolute left-0 top-0 bottom-0 w-1 ${
+                              item.is_correct ? 'bg-green-400' : 'bg-red-400'
+                            }`} />
+                            
+                            <div 
+                              className="p-6 cursor-pointer"
+                              onClick={() => setExpandedHistoryId(isExpanded ? null : item.id)}
+                            >
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1 pr-4">
+                                  <div className="flex items-center gap-3 mb-2">
+                                    <span className={`inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                                      item.is_correct ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                    }`}>
+                                      {item.is_correct ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                                      {item.is_correct ? 'Correct' : 'Incorrect'}
+                                    </span>
+                                    <span className="text-slate-400 text-xs font-medium">
+                                      {new Date(item.answered_at).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                  
+                                  <p className="text-slate-800 font-medium text-lg leading-relaxed">
+                                    {item.sentence.replace('___', '______')}
+                                  </p>
+                                </div>
+                                <button 
+                                  className="mt-1 p-1 text-slate-400 hover:text-slate-700 rounded-full hover:bg-slate-200 transition-colors shrink-0"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExpandedHistoryId(isExpanded ? null : item.id);
+                                  }}
+                                >
+                                  {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                                </button>
+                              </div>
+
+                              <AnimatePresence>
+                                {isExpanded && (
+                                  <motion.div 
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    className="overflow-hidden"
+                                  >
+                                    <div className="pt-6 mt-4 border-t border-slate-200/60">
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+                                        {item.options && item.options.filter(opt => opt).map((opt, i) => {
+                                          const isSelected = item.selected_answer === opt;
+                                          const isCorrect = item.correct_answer === opt;
+                                          let btnClass = "relative flex items-center p-3 rounded-xl border text-sm font-medium transition-all duration-200 ";
+                                          
+                                          if (isCorrect) {
+                                            btnClass += "border-green-500 bg-green-50 text-green-700 shadow-sm";
+                                          } else if (isSelected) {
+                                            btnClass += "border-red-500 bg-red-50 text-red-700 shadow-sm";
+                                          } else {
+                                            btnClass += "border-slate-200 bg-white text-slate-500";
+                                          }
+                                          
+                                          return (
+                                            <div key={i} className={btnClass}>
+                                              <span className="w-6 h-6 rounded-full bg-white/50 flex items-center justify-center mr-3 text-xs font-bold border border-current opacity-70 shrink-0">
+                                                {String.fromCharCode(65 + i)}
+                                              </span>
+                                              <span>{opt}</span>
+                                              {isCorrect && <CheckCircle2 className="w-5 h-5 text-green-500 ml-auto shrink-0" />}
+                                              {isSelected && !isCorrect && <XCircle className="w-5 h-5 text-red-500 ml-auto shrink-0" />}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                      
+                                      <div className="bg-indigo-50/50 p-5 rounded-xl border border-indigo-100/50">
+                                        <h4 className="text-sm font-bold text-indigo-900 mb-2 flex items-center gap-2">
+                                          <BookOpen className="w-4 h-4 text-indigo-500" />
+                                          Explanation
+                                        </h4>
+                                        <p className="text-slate-700 text-sm leading-relaxed whitespace-pre-line">
+                                          {item.explanation}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {dashboardTab === 'import' && (
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 space-y-6">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2 mb-2">
+                    <UploadCloud className="w-6 h-6 text-indigo-600" />
+                    Import Questions
+                  </h3>
+                  <p className="text-slate-500">
+                    Paste raw text from TOEIC PDF or Word files. AI will automatically parse questions, options, identify the correct answer, and generate detailed explanations.
+                  </p>
+                </div>
+
+                <textarea
+                  rows={10}
+                  placeholder="Example:
+101. The new software makes it possible to track shipments more _______.
+(A) exact
+(B) exactly
+(C) exactness
+(D) exacts"
+                  className="w-full rounded-xl border border-slate-300 p-4 focus:border-indigo-500 focus:ring-indigo-500 font-mono text-sm resize-y"
+                  value={importText}
+                  onChange={(e) => setImportText(e.target.value)}
+                />
+
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-slate-500 italic">
+                    Tip: Import 5-10 questions at a time to avoid timeout.
+                  </p>
+                  <button
+                    onClick={handleImport}
+                    disabled={importLoading || !importText.trim()}
+                    className="flex items-center justify-center px-8 py-3 rounded-full bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-all disabled:opacity-50"
+                  >
+                    {importLoading ? (
+                      <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Processing with AI...</>
+                    ) : (
+                      <><UploadCloud className="w-5 h-5 mr-2" /> Start Import</>
+                    )}
+                  </button>
+                </div>
+                {error && <p className="text-red-500 text-sm font-medium">{error}</p>}
+              </div>
+            )}
+          </div>
+        ) : null}
       </motion.div>
     </AnimatePresence>
   </div>

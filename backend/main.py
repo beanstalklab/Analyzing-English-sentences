@@ -3,10 +3,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from core.config import settings
 from api.routes import router as api_router
 
+from contextlib import asynccontextmanager
+from core.database import init_db
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
 app = FastAPI(
     title="Analyzing English Sentences API",
     description="AI-powered tool for analyzing English sentences for Vietnamese speakers",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Add CORS

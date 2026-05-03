@@ -167,3 +167,6 @@ Thay vì học thuộc lòng, hãy áp dụng quy trình sau:
 1. **Đọc câu**: Tiếp cận ngữ cảnh tự nhiên.
 2. **Phân tích**: Gạch chân từng từ trong câu.
 3. **Đặt câu hỏi**: "Từ này đang đóng vai trò gì? Nó bổ nghĩa cho từ nào?"
+
+Link tài liệu Word Form: https://drive.google.com/file/d/1PV3izk3aXQraQseXp8eAhpi1WRgrCpVa/view?fbclid=IwY2xjawRiOqBleHRuA2FlbQIxMABicmlkETFDbVFLclNYSFNBVEl2enVxc3J0YwZhcHBfaWQQMjIyMDM5MTc4ODIwMDg5MgABHl493EsPAPhz57ULhweLGLiVmH5XUQpT4m7Ij9qsZzigBF5t8VQuaqmuGZSV_aem_NI-IEx82Z-B8Xn1P0gYl8g
+

@@ -108,3 +108,94 @@ def generate_word_form_question() -> WordFormQuestion:
     except Exception as e:
         print("Error parsing LLM response for word form:", e)
         raise e
+
+def parse_and_solve_questions(raw_text: str) -> list[WordFormQuestion]:
+    prompt = f"""
+    Bạn là một chuyên gia luyện thi TOEIC.
+    Nhiệm vụ của bạn là bóc tách đoạn văn bản đề thi sau đây, nhận diện các câu hỏi Word Form (chọn từ loại), TỰ ĐỘNG CHỌN đáp án đúng nhất và sinh ra lời giải chi tiết cho từng câu.
+
+    Văn bản đầu vào có thể lộn xộn, bị rớt dòng, hoặc không có đáp án.
+    
+    Yêu cầu cho mỗi câu hỏi:
+    1. Trích xuất câu hỏi và đánh dấu chỗ trống bằng "___".
+    2. Trích xuất 4 lựa chọn (A, B, C, D).
+    3. Bạn phải tự đóng vai trò người làm bài, xác định đâu là lựa chọn đúng nhất (correct_answer) dựa trên ngữ pháp Tiếng Anh.
+    4. Cung cấp lời giải chi tiết bằng Tiếng Việt (explanation) giải thích tại sao đáp án đó đúng (đóng vai trò như một giáo viên giải thích cho học sinh).
+    5. Cung cấp từ gốc (word_root) của các lựa chọn.
+
+    Trả về một danh sách (array) các câu hỏi khớp với schema WordFormQuestionList.
+    
+    Văn bản cần xử lý:
+    {raw_text}
+    """
+    
+    from models.schemas import WordFormQuestionList
+    response = client.models.generate_content(
+        model='gemini-3.1-flash-lite-preview',
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=WordFormQuestionList,
+            thinking_config=types.ThinkingConfig(
+                thinking_level="HIGH",
+            ),
+        ),
+    )
+    
+    try:
+        if hasattr(response, 'parsed') and response.parsed is not None:
+             return response.parsed.questions
+        data = json.loads(response.text)
+        return WordFormQuestionList(**data).questions
+    except Exception as e:
+        print("Error parsing LLM response for word form:", e)
+        raise e
+
+def chat_with_persona(scenario: str, chat_history: list[dict], new_message: str | None = None) -> dict:
+    """
+    chat_history: [{"role": "user"|"model", "content": "..."}]
+    new_message: string or None (if None, it means we want the AI to start the conversation)
+    Returns: {"reply": "...", "correction": "..."}
+    """
+    system_instruction = f"""Bạn là một người bản xứ tiếng Anh đang đóng vai trong ngữ cảnh: "{scenario}".
+Mục tiêu của bạn là giúp người dùng luyện tập giao tiếp tiếng Anh một cách tự nhiên.
+Quy tắc:
+1. Phản hồi của bạn phải hoàn toàn bằng TIẾNG ANH, ngắn gọn, tự nhiên như giao tiếp thực tế. Đặt câu hỏi để duy trì hội thoại nếu cần thiết.
+2. Nếu tin nhắn CỦA NGƯỜI DÙNG có lỗi ngữ pháp hoặc dùng từ không tự nhiên (sai thứ tự từ, dùng từ sai ngữ cảnh), hãy cung cấp lời khuyên (correction) bằng tiếng Việt để giúp họ sửa lại cho tự nhiên hơn. Đừng quá khắt khe, chỉ sửa khi thực sự lỗi hoặc không tự nhiên.
+3. Nếu tin nhắn của người dùng hoàn toàn ổn, phần correction để null.
+4. KHÔNG BAO GIỜ thoát vai. Phản hồi luôn phải khớp với ngữ cảnh {scenario}.
+"""
+
+    from models.schemas import ChatResponse
+    
+    contents = []
+    # Build history for Gemini
+    for msg in chat_history:
+        role = "user" if msg["role"] == "user" else "model"
+        contents.append({"role": role, "parts": [{"text": msg["content"]}]})
+        
+    if new_message is not None:
+        contents.append({"role": "user", "parts": [{"text": new_message}]})
+    else:
+        # User wants AI to start the conversation
+        contents.append({"role": "user", "parts": [{"text": "Hello! Let's start our conversation. You speak first."}]})
+
+    try:
+        response = client.models.generate_content(
+            model='gemini-3.1-flash-lite-preview',
+            contents=contents,
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                response_mime_type="application/json",
+                response_schema=ChatResponse,
+                temperature=0.7
+            )
+        )
+        
+        if hasattr(response, 'parsed') and response.parsed is not None:
+             return {"reply": response.parsed.reply, "correction": response.parsed.correction}
+        data = json.loads(response.text)
+        return data
+    except Exception as e:
+        print("Error in chat_with_persona:", e)
+        raise e

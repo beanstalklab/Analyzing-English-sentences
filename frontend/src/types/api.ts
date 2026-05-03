@@ -30,3 +30,52 @@ export interface WordFormQuestion {
   explanation: string;
   word_root: string;
 }
+
+export interface DBQuestion {
+  id: number;
+  sentence: string;
+  options: string[];
+  correct_answer: string;
+  explanation: string;
+  word_root: string;
+}
+
+export interface UserProgressStats {
+  total_questions: number;
+  answered_questions: number;
+  correct_answers: number;
+  incorrect_answers: number;
+}
+
+export interface HistoryItem {
+  id: number;
+  question_id: number;
+  sentence: string;
+  options: string[];
+  selected_answer: string;
+  correct_answer: string;
+  is_correct: boolean;
+  explanation: string;
+  word_root: string;
+  answered_at: string;
+}
+
+export interface ChatMessage {
+  id?: number;
+  role: 'user' | 'assistant';
+  content: string;
+  correction_note?: string | null;
+  created_at?: string;
+}
+
+export interface ChatResponse {
+  reply: string;
+  correction?: string | null;
+}
+
+export interface ConversationData {
+  id: number;
+  scenario: string;
+  created_at: string;
+  messages: ChatMessage[];
+}

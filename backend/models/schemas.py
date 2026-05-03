@@ -27,3 +27,63 @@ class WordFormQuestion(BaseModel):
     correct_answer: str = Field(description="Nội dung đáp án đúng")
     explanation: str = Field(description="Giải thích chi tiết bằng Tiếng Việt tại sao đáp án đó đúng dựa trên ngữ pháp TOEIC")
     word_root: str = Field(description="Từ gốc (root word) của các lựa chọn")
+class WordFormQuestionList(BaseModel):
+    questions: list[WordFormQuestion] = Field(description="Danh sách các câu hỏi")
+
+class ImportRequest(BaseModel):
+    raw_text: str
+
+class AnswerSubmitRequest(BaseModel):
+    question_id: int
+    selected_answer: str
+
+class DBQuestion(BaseModel):
+    id: int
+    sentence: str
+    options: list[str]  # We will just return list of strings for simplicity
+    correct_answer: str
+    explanation: str
+    word_root: str
+
+class UserProgressStats(BaseModel):
+    total_questions: int
+    answered_questions: int
+    correct_answers: int
+    incorrect_answers: int
+
+class HistoryItem(BaseModel):
+    id: int
+    question_id: int
+    sentence: str
+    options: list[str]
+    selected_answer: str
+    correct_answer: str
+    is_correct: bool
+    explanation: str
+    word_root: str
+    answered_at: str
+
+# Chat Schemas
+class ConversationStartRequest(BaseModel):
+    scenario: str
+
+class ChatMessageRequest(BaseModel):
+    conversation_id: int
+    message: str
+
+class ChatMessage(BaseModel):
+    id: int
+    role: str
+    content: str
+    correction_note: str | None = None
+    created_at: str
+
+class ChatResponse(BaseModel):
+    reply: str
+    correction: str | None = None
+
+class ConversationData(BaseModel):
+    id: int
+    scenario: str
+    created_at: str
+    messages: list[ChatMessage]
