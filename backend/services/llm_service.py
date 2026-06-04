@@ -8,6 +8,7 @@ from models.schemas import AnalyzeResponse, WordFormQuestion, WordFormOption
 # The api_key is loaded from GEMINI_API_KEY environment variable by default,
 # but we explicitly pass it if needed.
 client = genai.Client(api_key=settings.GEMINI_API_KEY)
+GEMINI_MODEL = "gemini-3.1-flash-lite"
 
 SYSTEM_PROMPT = """
 Bạn là một chuyên gia ngôn ngữ học và giáo viên tiếng Anh bản xứ.
@@ -46,8 +47,9 @@ def analyze_sentence(text: str) -> AnalyzeResponse:
     #     types.Tool(googleSearch=types.GoogleSearch()),
     # ]
     
+    print("Sending prompt to LLM for analysis...")
     response = client.models.generate_content(
-        model='gemini-3.1-flash-lite-preview',
+        model=GEMINI_MODEL,
         contents=prompt,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
@@ -59,6 +61,7 @@ def analyze_sentence(text: str) -> AnalyzeResponse:
         ),
     )
     
+    print("LLM response received. Parsing...")
     # response.parsed should contain the Pydantic model parsed from the JSON output
     # However, sometimes we need to manually parse the json text if parsed is not populated.
     try:
@@ -89,7 +92,7 @@ def generate_word_form_question() -> WordFormQuestion:
     """
     
     response = client.models.generate_content(
-        model='gemini-3.1-flash-lite-preview',
+        model=GEMINI_MODEL,
         contents=prompt,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
@@ -131,7 +134,7 @@ def parse_and_solve_questions(raw_text: str) -> list[WordFormQuestion]:
     
     from models.schemas import WordFormQuestionList
     response = client.models.generate_content(
-        model='gemini-3.1-flash-lite-preview',
+        model=GEMINI_MODEL,
         contents=prompt,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
@@ -182,7 +185,7 @@ Quy tắc:
 
     try:
         response = client.models.generate_content(
-            model='gemini-3.1-flash-lite-preview',
+            model=GEMINI_MODEL,
             contents=contents,
             config=types.GenerateContentConfig(
                 system_instruction=system_instruction,

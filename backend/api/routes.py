@@ -14,6 +14,9 @@ router = APIRouter()
 class AnalyzeRequest(BaseModel):
     text: str
 
+class ExplanationUpdateRequest(BaseModel):
+    explanation: str
+
 @router.post("/analyze", response_model=AnalyzeResponse)
 def analyze(request: AnalyzeRequest):
     if not request.text or not request.text.strip():
@@ -139,6 +142,30 @@ def submit_answer(request: AnswerSubmitRequest):
         conn.commit()
         return {"status": "success", "is_correct": is_correct}
 
+@router.patch("/practice/questions/{question_id}/explanation")
+def update_question_explanation(question_id: int, request: ExplanationUpdateRequest):
+    explanation = request.explanation.strip()
+    if not explanation:
+        raise HTTPException(status_code=400, detail="Explanation cannot be empty")
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM questions WHERE id = ?", (question_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Question not found")
+
+        cursor.execute(
+            "UPDATE questions SET explanation = ? WHERE id = ?",
+            (explanation, question_id)
+        )
+        conn.commit()
+
+    return {
+        "status": "success",
+        "question_id": question_id,
+        "explanation": explanation
+    }
+
 @router.get("/practice/stats", response_model=UserProgressStats)
 def get_stats():
     with get_db() as conn:
@@ -178,6 +205,24 @@ def reset_progress():
         cursor.execute("DELETE FROM user_progress")
         conn.commit()
         return {"status": "success", "message": "Progress reset successfully"}
+
+@router.get("/practice/questions", response_model=list[DBQuestion])
+def get_questions():
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM questions ORDER BY id")
+        questions = []
+        for row in cursor.fetchall():
+            questions.append(DBQuestion(
+                id=row["id"],
+                sentence=row["sentence"],
+                options=[row["option_a"], row["option_b"], row["option_c"], row["option_d"]],
+                correct_answer=row["correct_answer"],
+                explanation=row["explanation"],
+                word_root=row["word_root"]
+            ))
+
+        return questions
 
 @router.get("/practice/history", response_model=list[HistoryItem])
 def get_history():

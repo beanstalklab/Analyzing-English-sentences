@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback, isValidElement, type PointerEvent as ReactPointerEvent, type ReactNode, type WheelEvent as ReactWheelEvent } from 'react';
 import axios from 'axios';
-import { Loader2, Mic, BookOpen, Volume2, Activity, Search, BrainCircuit, CheckCircle2, XCircle, ArrowRight, RotateCcw, ChevronRight, ChevronLeft, LayoutDashboard, UploadCloud, PieChart, Clock, Filter, ChevronDown, ChevronUp, MessageSquare, Coffee, Briefcase, Plane, Send, Lightbulb, User } from 'lucide-react';
+import { Loader2, Mic, BookOpen, Volume2, Activity, Search, BrainCircuit, CheckCircle2, XCircle, ArrowRight, RotateCcw, ChevronRight, ChevronLeft, LayoutDashboard, UploadCloud, PieChart, Clock, Filter, ChevronDown, ChevronUp, MessageSquare, Coffee, Briefcase, Plane, Send, Lightbulb, User, Pencil, Save } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -21,6 +21,11 @@ type TocMetrics = {
   maxThumbTop: number;
   thumbHeight: number;
 };
+
+type PracticeDisplayItem =
+  | { type: 'live'; question: DBQuestion | null; selectedIdx: number | null; isAnswered: boolean }
+  | { type: 'history'; item: HistoryItem }
+  | null;
 
 function App() {
   const [text, setText] = useState('');
@@ -284,9 +289,14 @@ function App() {
   const [importLoading, setImportLoading] = useState(false);
   const [stats, setStats] = useState<UserProgressStats | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [dashboardTab, setDashboardTab] = useState<'stats' | 'import'>('stats');
+  const [questionBank, setQuestionBank] = useState<DBQuestion[]>([]);
+  const [dashboardTab, setDashboardTab] = useState<'questions' | 'stats' | 'import'>('questions');
   const [historyFilter, setHistoryFilter] = useState<'all' | 'correct' | 'incorrect'>('all');
   const [expandedHistoryId, setExpandedHistoryId] = useState<number | null>(null);
+  const [expandedBankQuestionId, setExpandedBankQuestionId] = useState<number | null>(null);
+  const [editingExplanationQuestionId, setEditingExplanationQuestionId] = useState<number | null>(null);
+  const [explanationDraft, setExplanationDraft] = useState('');
+  const [savingExplanationId, setSavingExplanationId] = useState<number | null>(null);
 
   const filteredHistory = useMemo(() => {
     if (historyFilter === 'correct') return history.filter(h => h.is_correct);
@@ -444,12 +454,14 @@ function App() {
 
   const handleFetchStats = async () => {
     try {
-      const [statsRes, historyRes] = await Promise.all([
+      const [statsRes, historyRes, questionsRes] = await Promise.all([
         axios.get<UserProgressStats>(`${PRACTICE_API_URL}/stats`),
-        axios.get<HistoryItem[]>(`${PRACTICE_API_URL}/history`)
+        axios.get<HistoryItem[]>(`${PRACTICE_API_URL}/history`),
+        axios.get<DBQuestion[]>(`${PRACTICE_API_URL}/questions`)
       ]);
       setStats(statsRes.data);
       setHistory(historyRes.data);
+      setQuestionBank(questionsRes.data);
     } catch (err) {
       console.error(err);
     }
@@ -465,6 +477,59 @@ function App() {
         console.error(err);
         alert('Lỗi khi xóa lịch sử làm bài.');
       }
+    }
+  };
+
+  const handleStartEditExplanation = (questionId: number, explanation: string) => {
+    setEditingExplanationQuestionId(questionId);
+    setExplanationDraft(explanation);
+  };
+
+  const handleCancelEditExplanation = () => {
+    setEditingExplanationQuestionId(null);
+    setExplanationDraft('');
+  };
+
+  const handleSaveExplanation = async (questionId: number) => {
+    const nextExplanation = explanationDraft.trim();
+    if (!nextExplanation) {
+      alert('Explanation không được để trống.');
+      return;
+    }
+
+    setSavingExplanationId(questionId);
+    try {
+      const res = await axios.patch<{ explanation: string }>(
+        `${PRACTICE_API_URL}/questions/${questionId}/explanation`,
+        { explanation: nextExplanation }
+      );
+      const savedExplanation = res.data.explanation;
+
+      setHistory(prev => prev.map(item => (
+        item.question_id === questionId
+          ? { ...item, explanation: savedExplanation }
+          : item
+      )));
+
+      setQuestionBank(prev => prev.map(item => (
+        item.id === questionId
+          ? { ...item, explanation: savedExplanation }
+          : item
+      )));
+
+      setQuestion(prev => (
+        prev?.id === questionId
+          ? { ...prev, explanation: savedExplanation }
+          : prev
+      ));
+
+      setEditingExplanationQuestionId(null);
+      setExplanationDraft('');
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.detail || 'Không thể lưu explanation.');
+    } finally {
+      setSavingExplanationId(null);
     }
   };
 
@@ -506,20 +571,14 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [mode, handlePrevious, handleNext]);
 
-  const displayItem = useMemo(() => {
+  const displayItem = useMemo<PracticeDisplayItem>(() => {
     if (viewOffset === 0) {
       return { type: 'live', question, selectedIdx, isAnswered };
     }
-    const historyIdx = isAnswered ? viewOffset - 1 : viewOffset - 1; 
-    // Wait: if viewOffset=1, it's history[0]. Regardless of isAnswered, history[0] is always the previous question!
-    // Why? Because if `isAnswered` is true, the current question is actually `history[0]`.
-    // Wait, if `isAnswered` is true, and I am viewing viewOffset=1, I want to see the PREVIOUS question which is `history[1]`.
-    // Let's adjust historyIdx logic:
+
     const idx = isAnswered ? viewOffset : viewOffset - 1;
-    if (idx >= 0 && idx < history.length) {
-      return { type: 'history', item: history[idx] };
-    }
-    return null;
+    const item = history[idx];
+    return item ? { type: 'history', item } : null;
   }, [viewOffset, isAnswered, question, selectedIdx, history]);
 
   const dQuestion = displayItem?.type === 'history' ? displayItem.item : displayItem?.question;
@@ -530,6 +589,8 @@ function App() {
   const dSentence = displayItem?.type === 'history' ? displayItem.item.sentence : displayItem?.question?.sentence;
   const dIsAnswered = displayItem?.type === 'history' ? true : displayItem?.isAnswered;
   const dSelectedIdx = displayItem?.type === 'history' ? displayItem.item.options.findIndex(o => o === displayItem.item.selected_answer) : displayItem?.selectedIdx;
+  const dSelectedAnswer = dSelectedIdx !== null && dSelectedIdx !== undefined ? dOptions?.[dSelectedIdx] : undefined;
+  const dIsCorrectSelection = Boolean(dIsAnswered && dSelectedAnswer === dCorrectAnswer);
 
 
   const handleFetchTheory = async () => {
@@ -1088,13 +1149,13 @@ function App() {
                             {part}
                             {i < arr.length - 1 && (
                               <span className={`inline-block mx-2 min-w-[120px] border-b-2 text-center pb-1 ${
-                                dIsAnswered && dSelectedIdx !== null && dOptions?.[dSelectedIdx] === dCorrectAnswer
+                                dIsCorrectSelection
                                   ? 'border-green-500 text-green-600 font-bold'
-                                  : dIsAnswered && dSelectedIdx !== null
+                                  : dIsAnswered && dSelectedAnswer
                                     ? 'border-red-500 text-red-600 font-bold'
                                     : 'border-slate-300'
                               }`}>
-                                {dIsAnswered && dSelectedIdx !== null ? dOptions[dSelectedIdx] : ''}
+                                {dIsAnswered ? dSelectedAnswer ?? '' : ''}
                               </span>
                             )}
                           </span>
@@ -1139,9 +1200,9 @@ function App() {
 
                       {dIsAnswered && (
                         <div className="p-8 pt-0 animate-in zoom-in-95 duration-300">
-                          <div className={`rounded-2xl p-6 ${dSelectedIdx !== null && dOptions?.[dSelectedIdx] === dCorrectAnswer ? 'bg-green-50 border border-green-100' : 'bg-amber-50 border border-amber-100'}`}>
+                          <div className={`rounded-2xl p-6 ${dIsCorrectSelection ? 'bg-green-50 border border-green-100' : 'bg-amber-50 border border-amber-100'}`}>
                             <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
-                              {dSelectedIdx !== null && dOptions?.[dSelectedIdx] === dCorrectAnswer 
+                              {dIsCorrectSelection 
                                 ? <><CheckCircle2 className="w-5 h-5 text-green-600" /> Correct!</>
                                 : <><RotateCcw className="w-5 h-5 text-amber-600" /> Explanation</>
                               }
@@ -1310,6 +1371,15 @@ function App() {
           <div className="space-y-6 animate-in fade-in duration-500">
             <div className="flex bg-white rounded-2xl shadow-sm border border-slate-200 p-1 mb-6">
               <button
+                onClick={() => setDashboardTab('questions')}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold transition-all ${
+                  dashboardTab === 'questions' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                <BookOpen className="w-5 h-5" />
+                Question Bank
+              </button>
+              <button
                 onClick={() => setDashboardTab('stats')}
                 className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold transition-all ${
                   dashboardTab === 'stats' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-50'
@@ -1328,6 +1398,159 @@ function App() {
                 Import Questions
               </button>
             </div>
+
+            {dashboardTab === 'questions' && (
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="w-5 h-5 text-indigo-600" />
+                    <h2 className="text-lg font-semibold text-slate-800">Question Bank</h2>
+                  </div>
+                  <span className="rounded-full bg-indigo-50 px-3 py-1 text-sm font-bold text-indigo-700">
+                    {questionBank.length} questions
+                  </span>
+                </div>
+
+                <div className="divide-y divide-slate-100 max-h-[720px] overflow-y-auto">
+                  {questionBank.length === 0 ? (
+                    <div className="p-12 flex flex-col items-center text-center">
+                      <Filter className="w-10 h-10 text-slate-300 mb-3" />
+                      <p className="text-slate-500 font-medium">No questions in the bank yet.</p>
+                    </div>
+                  ) : (
+                    questionBank.map((item) => {
+                      const isExpanded = expandedBankQuestionId === item.id;
+
+                      return (
+                        <div key={item.id} className={`${isExpanded ? 'bg-slate-50' : 'bg-white'} transition-colors`}>
+                          <div className="p-6">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="min-w-0 flex-1">
+                                <div className="mb-2 flex flex-wrap items-center gap-2">
+                                  <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">
+                                    #{item.id}
+                                  </span>
+                                  <span className="rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-bold text-indigo-700">
+                                    Root: {item.word_root}
+                                  </span>
+                                  <span className="rounded-md bg-green-50 px-2 py-0.5 text-xs font-bold text-green-700">
+                                    Answer: {item.correct_answer}
+                                  </span>
+                                </div>
+                                <p className="text-lg font-semibold leading-relaxed text-slate-800">
+                                  {item.sentence.replace('___', '______')}
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => setExpandedBankQuestionId(isExpanded ? null : item.id)}
+                                className="mt-1 rounded-full p-1 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-700"
+                              >
+                                {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                              </button>
+                            </div>
+
+                            <AnimatePresence>
+                              {isExpanded && (
+                                <motion.div
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: 'auto', opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  className="overflow-hidden"
+                                >
+                                  <div className="mt-5 border-t border-slate-200/70 pt-5">
+                                    <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                      {item.options.filter(Boolean).map((opt, i) => {
+                                        const isCorrect = opt === item.correct_answer;
+
+                                        return (
+                                          <div
+                                            key={i}
+                                            className={`relative flex items-center rounded-xl border p-3 text-sm font-medium ${
+                                              isCorrect
+                                                ? 'border-green-500 bg-green-50 text-green-700'
+                                                : 'border-slate-200 bg-white text-slate-600'
+                                            }`}
+                                          >
+                                            <span className="mr-3 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-current bg-white/50 text-xs font-bold opacity-70">
+                                              {String.fromCharCode(65 + i)}
+                                            </span>
+                                            <span>{opt}</span>
+                                            {isCorrect && <CheckCircle2 className="ml-auto h-5 w-5 shrink-0 text-green-500" />}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+
+                                    <div className="rounded-xl border border-indigo-100/70 bg-indigo-50/50 p-5">
+                                      <div className="mb-3 flex items-center justify-between gap-3">
+                                        <h4 className="flex items-center gap-2 text-sm font-bold text-indigo-900">
+                                          <BookOpen className="h-4 w-4 text-indigo-500" />
+                                          Explanation
+                                        </h4>
+                                        {editingExplanationQuestionId === item.id ? (
+                                          <div className="flex items-center gap-2">
+                                            <button
+                                              onClick={handleCancelEditExplanation}
+                                              disabled={savingExplanationId === item.id}
+                                              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                                            >
+                                              <XCircle className="h-3.5 w-3.5" />
+                                              Cancel
+                                            </button>
+                                            <button
+                                              onClick={() => handleSaveExplanation(item.id)}
+                                              disabled={
+                                                savingExplanationId === item.id ||
+                                                !explanationDraft.trim() ||
+                                                explanationDraft.trim() === item.explanation.trim()
+                                              }
+                                              className="inline-flex h-8 items-center gap-1.5 rounded-md bg-indigo-600 px-3 text-xs font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                            >
+                                              {savingExplanationId === item.id ? (
+                                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                              ) : (
+                                                <Save className="h-3.5 w-3.5" />
+                                              )}
+                                              Save
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <button
+                                            onClick={() => handleStartEditExplanation(item.id, item.explanation)}
+                                            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-indigo-100 bg-white px-3 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
+                                          >
+                                            <Pencil className="h-3.5 w-3.5" />
+                                            Edit
+                                          </button>
+                                        )}
+                                      </div>
+
+                                      {editingExplanationQuestionId === item.id ? (
+                                        <textarea
+                                          value={explanationDraft}
+                                          onChange={(e) => setExplanationDraft(e.target.value)}
+                                          rows={12}
+                                          className="w-full resize-y rounded-lg border border-indigo-200 bg-white p-4 text-sm leading-relaxed text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                                          spellCheck={false}
+                                        />
+                                      ) : (
+                                        <p className="whitespace-pre-line text-sm leading-relaxed text-slate-700">
+                                          {item.explanation}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
 
             {dashboardTab === 'stats' && stats && (
               <div className="space-y-6">
@@ -1474,14 +1697,66 @@ function App() {
                                         })}
                                       </div>
                                       
-                                      <div className="bg-indigo-50/50 p-5 rounded-xl border border-indigo-100/50">
-                                        <h4 className="text-sm font-bold text-indigo-900 mb-2 flex items-center gap-2">
-                                          <BookOpen className="w-4 h-4 text-indigo-500" />
-                                          Explanation
-                                        </h4>
-                                        <p className="text-slate-700 text-sm leading-relaxed whitespace-pre-line">
-                                          {item.explanation}
-                                        </p>
+                                      <div
+                                        className="bg-indigo-50/50 p-5 rounded-xl border border-indigo-100/50"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <div className="mb-3 flex items-center justify-between gap-3">
+                                          <h4 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
+                                            <BookOpen className="w-4 h-4 text-indigo-500" />
+                                            Explanation
+                                          </h4>
+                                          {editingExplanationQuestionId === item.question_id ? (
+                                            <div className="flex items-center gap-2">
+                                              <button
+                                                onClick={handleCancelEditExplanation}
+                                                disabled={savingExplanationId === item.question_id}
+                                                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                                              >
+                                                <XCircle className="w-3.5 h-3.5" />
+                                                Cancel
+                                              </button>
+                                              <button
+                                                onClick={() => handleSaveExplanation(item.question_id)}
+                                                disabled={
+                                                  savingExplanationId === item.question_id ||
+                                                  !explanationDraft.trim() ||
+                                                  explanationDraft.trim() === item.explanation.trim()
+                                                }
+                                                className="inline-flex h-8 items-center gap-1.5 rounded-md bg-indigo-600 px-3 text-xs font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                              >
+                                                {savingExplanationId === item.question_id ? (
+                                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                ) : (
+                                                  <Save className="w-3.5 h-3.5" />
+                                                )}
+                                                Save
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <button
+                                              onClick={() => handleStartEditExplanation(item.question_id, item.explanation)}
+                                              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-indigo-100 bg-white px-3 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
+                                            >
+                                              <Pencil className="w-3.5 h-3.5" />
+                                              Edit
+                                            </button>
+                                          )}
+                                        </div>
+
+                                        {editingExplanationQuestionId === item.question_id ? (
+                                          <textarea
+                                            value={explanationDraft}
+                                            onChange={(e) => setExplanationDraft(e.target.value)}
+                                            rows={12}
+                                            className="w-full rounded-lg border border-indigo-200 bg-white p-4 text-sm leading-relaxed text-slate-800 outline-none resize-y focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                                            spellCheck={false}
+                                          />
+                                        ) : (
+                                          <p className="text-slate-700 text-sm leading-relaxed whitespace-pre-line">
+                                            {item.explanation}
+                                          </p>
+                                        )}
                                       </div>
                                     </div>
                                   </motion.div>
